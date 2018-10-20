@@ -118,3 +118,5 @@ test/dest
 tmp/*
 /data_steward/test/test_data/export/synpuf/*.csv
 .circleci/oldconfig.yml
+/notebooks/*.ipynb
+/notebooks/notebooks_env
