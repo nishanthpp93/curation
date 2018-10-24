@@ -28,9 +28,10 @@ fi
 export GOOGLE_APPLICATION_CREDENTIALS="${KEY_FILE}"
 export APPLICATION_ID="${APP_ID}"
 gcloud config set project "${APP_ID}"
+pybin="$(which python2.7 | which python)"
 
-virtualenv -p $(which python2.7 | which python) notebooks_env
-"${BIN_PATH}/python" -m pip install -U pip
-source "${BIN_PATH}"/activate
+virtualenv -p ${pybin} notebooks_env
+${BIN_PATH}/pip install -U pip
+source ${BIN_PATH}/activate
 pip install -r requirements.txt
 jupyter notebook --config=jupyter_notebook_config.py
