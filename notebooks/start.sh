@@ -19,11 +19,18 @@ then
   exit 1
 fi
 
+BIN_PATH='notebooks_env/bin'
+if test -d notebooks_env/Scripts
+then
+    BIN_PATH='notebooks_env/Scripts'
+fi
+
 export GOOGLE_APPLICATION_CREDENTIALS="${KEY_FILE}"
+export APPLICATION_ID="${APP_ID}"
 gcloud config set project "${APP_ID}"
 
-virtualenv -p $(which python2.7) notebooks_env
-notebooks_env/bin/pip install -U pip
-source notebooks_env/bin/activate
+virtualenv -p $(which python2.7 | which python) notebooks_env
+"${BIN_PATH}/python" -m pip install -U pip
+source "${BIN_PATH}"/activate
 pip install -r requirements.txt
 jupyter notebook --config=jupyter_notebook_config.py
