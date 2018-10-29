@@ -19,7 +19,7 @@
 #     name: python
 #     nbconvert_exporter: python
 #     pygments_lexer: ipython2
-#     version: 2.7.12
+#     version: 2.7.13
 # ---
 
 # %matplotlib inline
@@ -27,6 +27,48 @@ import google.datalab.bigquery as bq
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set()
+
+# # Characterization of EHR data
+
+q = """
+SELECT 
+  (2018 - r.year_of_birth) AS age,
+  gc.concept_name AS gender,
+  rc.concept_name AS race,
+  ec.concept_name AS ethnicity,
+  CASE WHEN e.person_id IS NULL THEN 'no' ELSE 'yes' END AS has_ehr_data
+FROM rdr20181019.person r
+  LEFT JOIN `ehr20181025.unioned_ehr_person` e 
+    ON r.person_id = e.person_id
+JOIN `vocabulary20180104.concept` gc 
+  ON r.gender_concept_id = gc.concept_id
+JOIN `vocabulary20180104.concept` rc
+  ON r.race_concept_id = rc.concept_id
+JOIN `vocabulary20180104.concept` ec
+  ON r.ethnicity_concept_id = ec.concept_id
+ORDER BY age, gender, race
+""".format(uq=uq)
+df = bq.Query(q).execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
+
+# ## Presence of EHR data by race
+
+# +
+df['race'] = df['race'].astype('category')
+df['ethnicity'] = df['ethnicity'].astype('category')
+df['has_ehr_data'] = df['has_ehr_data'].astype('category')
+
+# exclude anomalous records where age<18 or age>100
+f = df[(df.age > 17) & (df.age < 100)]
+g = sns.factorplot('race', data=f, aspect=4, size=3.25, kind='count', order=f.race.value_counts().index, hue='has_ehr_data')
+g.set_xticklabels(rotation=45, ha='right')
+# -
+
+# ## Presence of EHR data by ethnicity
+
+g = sns.factorplot('ethnicity', data=f, kind='count', order=f.ethnicity.value_counts().index, hue='has_ehr_data')
+
+# # Characterization of CDR data
+# The following statistics describe the candidate CDR dataset `combined20181025`. This dataset is formed by combining the unioned EHR data submitted by HPOs with the PPI data we receive from the RDR.
 
 q = bq.Query('''
 SELECT 
@@ -43,13 +85,21 @@ JOIN `vocabulary20180104.concept` ec
   ON p.ethnicity_concept_id = ec.concept_id
 ORDER BY age, gender, race
 ''')
-df = q.execute(output_options=bq.QueryOutput.dataframe()).result()
+df = q.execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
 
+# ## Distribution of participant age stratified by gender
+
+# +
 df['race'] = df['race'].astype('category')
 df['gender'] = df['gender'].astype('category')
+
+# exclude anomalous records where age<18 or age>100
 f = df[(df.age > 17) & (df.age < 100)]
 g = sns.factorplot('age', data=f, aspect=4, size=3.25, kind='count', hue='gender', order=range(15,100))
 g.set_xticklabels(step=5)
+# -
+
+# ## Distribution of participant race
 
 g = sns.factorplot(x='race', data=f, aspect=5, size=2.5, kind='count', order=f.race.value_counts().index)
 g.set_xticklabels(rotation=45, ha='right')

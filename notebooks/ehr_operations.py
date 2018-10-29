@@ -20,7 +20,7 @@
 #     name: python
 #     nbconvert_exporter: python
 #     pygments_lexer: ipython2
-#     version: 2.7.12
+#     version: 2.7.13
 # ---
 
 # # EHR Operations
@@ -30,6 +30,10 @@
 
 import google.datalab.bigquery as bq
 import os
+import datetime
+
+now = datetime.datetime.now()
+end_suffix = now.strftime('%m%d')
 # -
 
 # ## Most Recent Bucket Uploads
@@ -46,10 +50,10 @@ SELECT
 FROM
   `aou-res-curation-prod.lookup_tables.hpo_id_bucket_name` h
   JOIN `aou-res-curation-prod.lookup_tables.hpo_site_id_mappings` m ON h.hpo_id = m.HPO_ID
-  LEFT JOIN `all-of-us-rdr-prod.GcsBucketLogging.cloudaudit_googleapis_com_data_access_2018*` l
+  LEFT JOIN `all-of-us-rdr-prod.GcsBucketLogging.cloudaudit_googleapis_com_data_access_{year}*` l
    ON l.resource.labels.bucket_name = h.bucket_name
 WHERE
-  _TABLE_SUFFIX BETWEEN '0801' AND '1024'
+  _TABLE_SUFFIX BETWEEN '0801' AND '{end_suffix}'
   AND protopayload_auditlog.authenticationInfo.principalEmail IS NOT NULL
   AND protopayload_auditlog.authenticationInfo.principalEmail <> 'aou-res-curation-prod@appspot.gserviceaccount.com'
   AND protopayload_auditlog.methodName = 'storage.objects.create'
@@ -61,12 +65,17 @@ GROUP BY
   resource.labels.bucket_name,
   protopayload_auditlog.authenticationInfo.principalEmail
 ORDER BY MAX(timestamp) ASC
-''').execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
+'''.format(year=now.year, end_suffix=end_suffix)).execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
 
 # ## EHR Site Submission Counts
 
 bq.Query('''
-SELECT table_id, row_count, l.*
+SELECT 
+  l.Org_ID AS org_id,
+  l.HPO_ID AS hpo_id,
+  l.Site_Name AS site_name,
+  table_id AS table_id, 
+  row_count AS row_count
 FROM `aou-res-curation-prod.prod_drc_dataset.__TABLES__` AS t
 JOIN `aou-res-curation-prod.lookup_tables.hpo_site_id_mappings` AS l  
   ON STARTS_WITH(table_id,lower(l.HPO_ID))=true
@@ -84,9 +93,9 @@ WHERE table_id LIKE '%person'
 AND table_id NOT LIKE '%unioned_ehr_%'
 """).execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result().hpo_id.tolist()
 
-# How many person_ids:
-# 1. cannot be found in the latest RDR dump
-# 1. are not valid participant identifiers
+# ## Person ID validation
+
+# For each site submission, how many person_ids cannot be found in the latest RDR dump (*not_in_rdr*) or are not valid 9-digit participant identifiers (_invalid_).
 
 subqueries = []
 subquery = """
