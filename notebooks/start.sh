@@ -27,6 +27,7 @@ fi
 
 export GOOGLE_APPLICATION_CREDENTIALS="${KEY_FILE}"
 export APPLICATION_ID="${APP_ID}"
+export PROJECT_ID="${APP_ID}"
 gcloud config set project "${APP_ID}"
 pybin="$(which python2.7 | which python)"
 

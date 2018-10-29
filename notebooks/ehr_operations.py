@@ -20,7 +20,7 @@
 #     name: python
 #     nbconvert_exporter: python
 #     pygments_lexer: ipython2
-#     version: 2.7.13
+#     version: 2.7.12
 # ---
 
 # # EHR Operations
@@ -30,9 +30,6 @@
 
 import google.datalab.bigquery as bq
 import os
-
-app_id = os.environ.get('APPLICATION_ID')
-# %datalab project set -p $app_id
 # -
 
 # ## Most Recent Bucket Uploads
@@ -78,3 +75,43 @@ NOT(table_id like '%unioned_ehr_%') AND
 l.hpo_id <> ''
 ORDER BY Display_Order
 ''').execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
+
+# get list of all hpo_ids
+hpo_ids = bq.Query("""
+SELECT REPLACE(table_id, '_person', '') AS hpo_id
+FROM `aou-res-curation-prod.prod_drc_dataset.__TABLES__`
+WHERE table_id LIKE '%person' 
+AND table_id NOT LIKE '%unioned_ehr_%'
+""").execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result().hpo_id.tolist()
+
+# How many person_ids:
+# 1. cannot be found in the latest RDR dump
+# 1. are not valid participant identifiers
+
+subqueries = []
+subquery = """
+SELECT
+ '{h}' AS hpo_id,
+ not_in_rdr.n AS not_in_rdr,
+ invalid.n AS invalid,
+ CAST(T.row_count AS INT64) AS total
+FROM ehr20181025.__TABLES__ T
+LEFT JOIN
+(SELECT COUNT(1) AS n
+ FROM ehr20181025.{h}_person e
+ WHERE NOT EXISTS(
+  SELECT 1 
+  FROM rdr20181019.person r
+  WHERE r.person_id = e.person_id)) not_in_rdr
+ ON TRUE
+LEFT JOIN
+(SELECT COUNT(1) AS n
+ FROM ehr20181025.{h}_person e
+ WHERE NOT person_id BETWEEN 100000000 AND 999999999) invalid
+ ON TRUE
+WHERE T.table_id = '{h}_person'"""
+for hpo_id in hpo_ids:
+    subqueries.append(subquery.format(h=hpo_id))
+q = '\n\nUNION ALL\n'.join(subqueries)
+df = bq.Query(q).execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
+df

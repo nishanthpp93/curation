@@ -28,6 +28,32 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set()
 
+q = bq.Query('''
+SELECT 
+  (2018 - p.year_of_birth) AS age,
+  gc.concept_name AS gender,
+  rc.concept_name AS race,
+  ec.concept_name AS ethnicity
+FROM `combined20181025.person` p
+JOIN `vocabulary20180104.concept` gc 
+  ON p.gender_concept_id = gc.concept_id
+JOIN `vocabulary20180104.concept` rc
+  ON p.race_concept_id = rc.concept_id
+JOIN `vocabulary20180104.concept` ec
+  ON p.ethnicity_concept_id = ec.concept_id
+ORDER BY age, gender, race
+''')
+df = q.execute(output_options=bq.QueryOutput.dataframe()).result()
+
+df['race'] = df['race'].astype('category')
+df['gender'] = df['gender'].astype('category')
+f = df[(df.age > 17) & (df.age < 100)]
+g = sns.factorplot('age', data=f, aspect=4, size=3.25, kind='count', hue='gender', order=range(15,100))
+g.set_xticklabels(step=5)
+
+g = sns.factorplot(x='race', data=f, aspect=5, size=2.5, kind='count', order=f.race.value_counts().index)
+g.set_xticklabels(rotation=45, ha='right')
+
 # # Gender By Race
 
 def gender_by_race(dataset_id):
