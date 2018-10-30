@@ -22,11 +22,16 @@
 #     version: 2.7.13
 # ---
 
+# +
 # %matplotlib inline
 import google.datalab.bigquery as bq
 import matplotlib.pyplot as plt
 import seaborn as sns
+import warnings
+
+warnings.filterwarnings('ignore')
 sns.set()
+# -
 
 # # Characterization of EHR data
 
@@ -47,7 +52,7 @@ JOIN `vocabulary20180104.concept` rc
 JOIN `vocabulary20180104.concept` ec
   ON r.ethnicity_concept_id = ec.concept_id
 ORDER BY age, gender, race
-""".format(uq=uq)
+"""
 df = bq.Query(q).execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
 
 # ## Presence of EHR data by race
