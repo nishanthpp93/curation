@@ -19,7 +19,7 @@
 #     name: python
 #     nbconvert_exporter: python
 #     pygments_lexer: ipython2
-#     version: 2.7.13
+#     version: 2.7.12
 # ---
 
 # +
@@ -32,6 +32,35 @@ import warnings
 warnings.filterwarnings('ignore')
 sns.set()
 # -
+
+def row_counts(dataset_ids):
+    sq = "SELECT '{dataset_id}' dataset_id, table_id, row_count FROM {dataset_id}.__TABLES__"
+    sqs = map(lambda d: sq.format(dataset_id=d), dataset_ids)
+    iq = "\nUNION ALL\n".join(sqs)
+    q = """ 
+    SELECT dataset_id, table_id, row_count 
+    FROM ({iq})
+    WHERE table_id NOT LIKE '%union%' 
+      AND table_id NOT LIKE '%ipmc%'
+    ORDER BY table_id, dataset_id""".format(iq=iq)
+    df = bq.Query(q).execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
+    df['load_date'] = df.dataset_id.str[-8:]
+    df['load_date'] = df['load_date'].astype('category')
+    df['dataset_id'] = df['dataset_id'].astype('category')
+    df['table_id'] = df['table_id'].astype('category')
+    g = sns.FacetGrid(df, col='table_id', sharey=False, col_wrap=5)
+    g.map(sns.barplot, 'load_date', 'row_count', ci=None)
+    g.set_xticklabels(rotation=45, ha='right')
+
+# # RDR data volume over time
+
+rdr_datasets = ['rdr20180620', 'rdr20181101']
+row_counts(rdr_datasets)
+
+# # EHR data volume over time
+
+dataset_ids = ['unioned_ehr20180807', 'unioned_ehr20181022', 'unioned_ehr20181025']
+row_counts(dataset_ids)
 
 # # Characterization of EHR data
 
@@ -140,5 +169,7 @@ gender_by_race('rdr20180620')
 # ## EHR
 
 gender_by_race('unioned_ehr20180822')
+
+# ## CDR
 
 gender_by_race('combined20180822')
