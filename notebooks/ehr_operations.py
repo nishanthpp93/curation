@@ -104,10 +104,10 @@ SELECT
  not_in_rdr.n AS not_in_rdr,
  invalid.n AS invalid,
  CAST(T.row_count AS INT64) AS total
-FROM ehr20181025.__TABLES__ T
+FROM prod_drc_dataset.__TABLES__ T
 LEFT JOIN
 (SELECT COUNT(1) AS n
- FROM ehr20181025.{h}_person e
+ FROM prod_drc_dataset.{h}_person e
  WHERE NOT EXISTS(
   SELECT 1 
   FROM rdr20181019.person r
@@ -115,7 +115,7 @@ LEFT JOIN
  ON TRUE
 LEFT JOIN
 (SELECT COUNT(1) AS n
- FROM ehr20181025.{h}_person e
+ FROM prod_drc_dataset.{h}_person e
  WHERE NOT person_id BETWEEN 100000000 AND 999999999) invalid
  ON TRUE
 WHERE T.table_id = '{h}_person'"""
