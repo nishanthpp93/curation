@@ -59,7 +59,12 @@ row_counts(rdr_datasets)
 
 # # EHR data volume over time
 
-dataset_ids = ['unioned_ehr20180807', 'unioned_ehr20181022', 'unioned_ehr20181025']
+dataset_ids = ['unioned_ehr20181022', 'unioned_ehr20181025', 'unioned_ehr20181114']
+row_counts(dataset_ids)
+
+# ## Combined data volume over time
+
+dataset_ids = ['combined20181022', 'combined20181025', 'combined20181114']
 row_counts(dataset_ids)
 
 # # Characterization of EHR data
@@ -71,8 +76,8 @@ SELECT
   rc.concept_name AS race,
   ec.concept_name AS ethnicity,
   CASE WHEN e.person_id IS NULL THEN 'no' ELSE 'yes' END AS has_ehr_data
-FROM rdr20181019.person r
-  LEFT JOIN `ehr20181025.unioned_ehr_person` e 
+FROM rdr20181113.person r
+  LEFT JOIN `unioned_ehr20181114.person` e 
     ON r.person_id = e.person_id
 JOIN `vocabulary20180104.concept` gc 
   ON r.gender_concept_id = gc.concept_id
@@ -102,7 +107,7 @@ g.set_xticklabels(rotation=45, ha='right')
 g = sns.factorplot('ethnicity', data=f, kind='count', order=f.ethnicity.value_counts().index, hue='has_ehr_data')
 
 # # Characterization of CDR data
-# The following statistics describe the candidate CDR dataset `combined20181025`. This dataset is formed by combining the unioned EHR data submitted by HPOs with the PPI data we receive from the RDR.
+# The following statistics describe the candidate CDR dataset `combined20181114`. This dataset is formed by combining the unioned EHR data submitted by HPOs with the PPI data we receive from the RDR.
 
 q = bq.Query('''
 SELECT 
@@ -110,7 +115,7 @@ SELECT
   gc.concept_name AS gender,
   rc.concept_name AS race,
   ec.concept_name AS ethnicity
-FROM `combined20181025.person` p
+FROM `combined20181114.person` p
 JOIN `vocabulary20180104.concept` gc 
   ON p.gender_concept_id = gc.concept_id
 JOIN `vocabulary20180104.concept` rc
@@ -164,12 +169,12 @@ def gender_by_race(dataset_id):
 
 # ## RDR
 
-gender_by_race('rdr20180620')
+gender_by_race('rdr20181113')
 
 # ## EHR
 
-gender_by_race('unioned_ehr20180822')
+gender_by_race('unioned_ehr20181114')
 
 # ## CDR
 
-gender_by_race('combined20180822')
+gender_by_race('combined20181114')
