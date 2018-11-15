@@ -34,7 +34,12 @@ import datetime
 
 now = datetime.datetime.now()
 end_suffix = now.strftime('%m%d')
+RDR_DATASET_ID = os.environ.get('RDR_DATASET_ID')
+EHR_DATASET_ID = os.environ.get('EHR_DATASET_ID')
 # -
+
+print 'RDR_DATASET_ID=%s' % RDR_DATASET_ID
+print 'EHR_DATASET_ID=%s' % EHR_DATASET_ID
 
 # ## Most Recent Bucket Uploads
 # _Based on `storage.objects.create` log events of objects named `person.csv` archived in BigQuery_
@@ -48,8 +53,8 @@ SELECT
   MAX(SUBSTR(protopayload_auditlog.resourceName, 34)) AS resource_name,
   MAX(timestamp) AS upload_timestamp
 FROM
-  `aou-res-curation-prod.lookup_tables.hpo_id_bucket_name` h
-  JOIN `aou-res-curation-prod.lookup_tables.hpo_site_id_mappings` m ON h.hpo_id = m.HPO_ID
+  `lookup_tables.hpo_id_bucket_name` h
+  JOIN `lookup_tables.hpo_site_id_mappings` m ON h.hpo_id = m.HPO_ID
   LEFT JOIN `all-of-us-rdr-prod.GcsBucketLogging.cloudaudit_googleapis_com_data_access_{year}*` l
    ON l.resource.labels.bucket_name = h.bucket_name
 WHERE
@@ -76,23 +81,24 @@ SELECT
   l.Site_Name AS site_name,
   table_id AS table_id, 
   row_count AS row_count
-FROM `aou-res-curation-prod.prod_drc_dataset.__TABLES__` AS t
-JOIN `aou-res-curation-prod.lookup_tables.hpo_site_id_mappings` AS l  
+FROM `{EHR_DATASET_ID}.__TABLES__` AS t
+JOIN `lookup_tables.hpo_site_id_mappings` AS l  
   ON STARTS_WITH(table_id,lower(l.HPO_ID))=true
 WHERE table_id like '%person%' AND
 NOT(table_id like '%unioned_ehr_%') AND 
 l.hpo_id <> ''
 ORDER BY Display_Order
-''').execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
+'''.format(EHR_DATASET_ID=EHR_DATASET_ID)).execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
 
 # get list of all hpo_ids
 hpo_ids = bq.Query("""
 SELECT REPLACE(table_id, '_person', '') AS hpo_id
-FROM `aou-res-curation-prod.prod_drc_dataset.__TABLES__`
+FROM `{EHR_DATASET_ID}.__TABLES__`
 WHERE table_id LIKE '%person' 
 AND table_id NOT LIKE '%unioned_ehr_%'
-""").execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result().hpo_id.tolist()
+""".format(EHR_DATASET_ID=EHR_DATASET_ID)).execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result().hpo_id.tolist()
 
+# # Person
 # ## Person ID validation
 
 # For each site submission, how many person_ids cannot be found in the latest RDR dump (*not_in_rdr*) or are not valid 9-digit participant identifiers (_invalid_).
@@ -104,23 +110,48 @@ SELECT
  not_in_rdr.n AS not_in_rdr,
  invalid.n AS invalid,
  CAST(T.row_count AS INT64) AS total
-FROM prod_drc_dataset.__TABLES__ T
+FROM {EHR_DATASET_ID}.__TABLES__ T
 LEFT JOIN
 (SELECT COUNT(1) AS n
- FROM prod_drc_dataset.{h}_person e
+ FROM {EHR_DATASET_ID}.{h}_person e
  WHERE NOT EXISTS(
   SELECT 1 
-  FROM rdr20181019.person r
+  FROM {RDR_DATASET_ID}.person r
   WHERE r.person_id = e.person_id)) not_in_rdr
  ON TRUE
 LEFT JOIN
 (SELECT COUNT(1) AS n
- FROM prod_drc_dataset.{h}_person e
+ FROM {EHR_DATASET_ID}.{h}_person e
  WHERE NOT person_id BETWEEN 100000000 AND 999999999) invalid
  ON TRUE
 WHERE T.table_id = '{h}_person'"""
 for hpo_id in hpo_ids:
-    subqueries.append(subquery.format(h=hpo_id))
+    subqueries.append(subquery.format(h=hpo_id, EHR_DATASET_ID=EHR_DATASET_ID, RDR_DATASET_ID=RDR_DATASET_ID))
 q = '\n\nUNION ALL\n'.join(subqueries)
 df = bq.Query(q).execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
+df
+
+# ## birth_datetime IS NULL
+
+# +
+subqueries = []
+subquery = """
+SELECT
+ '{h}' AS hpo_id,
+ COUNT(1) n
+FROM {EHR_DATASET_ID}.{h}_person p
+WHERE birth_datetime IS NULL
+"""
+for hpo_id in hpo_ids:
+    subqueries.append(subquery.format(h=hpo_id, EHR_DATASET_ID=EHR_DATASET_ID))
+q = '\n\nUNION ALL\n'.join(subqueries)
+cte = """
+WITH birth_datetime_null AS
+({q})
+SELECT * FROM birth_datetime_null
+WHERE n > 0
+ORDER BY n DESC
+""".format(q=q)
+
+df = bq.Query(cte).execute(output_options=bq.QueryOutput.dataframe(use_cache=False)).result()
 df

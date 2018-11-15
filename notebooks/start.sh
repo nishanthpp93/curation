@@ -2,6 +2,8 @@
 
 APP_ID='aou-res-curation-test'
 KEY_FILE=''
+RDR_DATASET='rdr20181113'
+EHR_DATASET='ehr20181114'
 
 USAGE="start.sh --key_file <Path to service account key> [--app_id <Application ID. Defaults to ${APP_ID}.>]"
 
@@ -9,6 +11,8 @@ while true; do
   case "$1" in
     --key_file) KEY_FILE=$2; shift 2;;
     --app_id) APP_ID=$2; shift 2;;
+    --rdr_dataset) RDR_DATASET_ID=$2; shift 2;;
+    --ehr_dataset) EHR_DATASET_ID=$2; shift 2;;
     -- ) shift; break ;;
     * ) break ;;
   esac
@@ -28,6 +32,8 @@ fi
 export GOOGLE_APPLICATION_CREDENTIALS="${KEY_FILE}"
 export APPLICATION_ID="${APP_ID}"
 export PROJECT_ID="${APP_ID}"
+export RDR_DATASET_ID="${RDR_DATASET}"
+export EHR_DATASET_ID="${EHR_DATASET}"
 gcloud config set project "${APP_ID}"
 pybin="$(which python2.7 | which python)"
 
