@@ -120,3 +120,5 @@ tmp/*
 .circleci/oldconfig.yml
 /notebooks/*.ipynb
 /notebooks/notebooks_env
+/notebooks/output
+/notebooks/*.yaml
