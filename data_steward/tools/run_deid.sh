@@ -74,11 +74,11 @@ export BIGQUERY_DATASET_ID="${cdr_deid}"
 bq mk --dataset --description "${version} deid ${cdr}" ${app_id}:${cdr_deid}
 
 #Create the clinical tables for unioned EHR data set
-python cdm.py ${cdr_deid}
+python ../cdm.py ${cdr_deid}
 
 #Copy OMOP vocabulary to CDR EHR data set
-python cdm.py --component vocabulary ${cdr_deid}
-tools/table_copy.sh --source_app_id ${app_id} --target_app_id ${app_id} --source_dataset ${vocab_dataset} --target_dataset ${cdr_deid}
+python ../cdm.py --component vocabulary ${cdr_deid}
+./table_copy.sh --source_app_id ${app_id} --target_app_id ${app_id} --source_dataset ${vocab_dataset} --target_dataset ${cdr_deid}
 
 #The location and care_site tables must be deleted (due to this bug):
 bq rm -f --table ${app_id}:${cdr_deid}.location

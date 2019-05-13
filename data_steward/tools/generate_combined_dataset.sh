@@ -65,7 +65,7 @@ source set_path.sh
 
 #--------------------------------------------------------
 #Combine RDR and Unioned EHR data (step 6 in playbook)
-cdr="${today}"
+cdr="combined{$today}"
 tag=$(git describe --abbrev=0 --tags)
 version=${tag}
 
@@ -87,5 +87,5 @@ tools/table_copy.sh --source_app_id ${app_id} --target_app_id ${app_id} --source
 #Combine EHR and PPI data sets
 python tools/combine_ehr_rdr.py
 
-unset PYTHOPATH
+unset PYTHONPATH
 deactivate
