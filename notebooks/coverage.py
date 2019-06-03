@@ -49,7 +49,7 @@ def get_hpo_table_columns(hpo_id):
     :param hpo_id: hpo site id
     :return: dataframe with table name, column name and table row count
     '''
-    query = """SELECT table_name, column_name, t.row_count as table_row_count 
+    query = """SELECT table_name, column_name, t.row_count as table_row_count, '{hpo_id}' as hpo_id 
                FROM {dataset}.INFORMATION_SCHEMA.COLUMNS c
                JOIN {dataset}.__TABLES__ t on c.table_name=t.table_id
                WHERE STARTS_WITH(table_id, lower('{hpo_id}'))=true AND
@@ -74,10 +74,11 @@ def get_hpo_table_columns(hpo_id):
     return df
 
 
-def create_hpo_completeness_query(table_columns):
+def create_hpo_completeness_query(table_columns, hpo_id):
     query_with_concept_id = """SELECT current_datetime() as report_run_time, x.*, CASE WHEN total_rows=0 THEN 0 ELSE (num_nonnulls_zeros)/(total_rows) END as percent_field_populated 
        FROM (
-            SELECT '{table_name}' as table_name, '{column_name}' as column_name, 
+            SELECT '{table_name}' as table_name, '{column_name}' as column_name,
+                   '{hpo_id}' as site_name,
                    {table_row_count} as total_rows, 
                    sum(case when {column_name}=0 then 0 else 1 end) as num_nonnulls_zeros,
                    ({table_row_count} - count({column_name})) as non_populated_rows 
@@ -86,7 +87,8 @@ def create_hpo_completeness_query(table_columns):
     """
     query_without_concept_id = """SELECT current_datetime() as report_run_time, x.*, CASE WHEN total_rows=0 THEN 0 ELSE (num_nonnulls_zeros)/(total_rows) END as percent_field_populated 
        FROM (
-            SELECT '{table_name}' as table_name, '{column_name}' as column_name, 
+            SELECT '{table_name}' as table_name, '{column_name}' as column_name,
+                   '{hpo_id}' as site_name,
                    {table_row_count} as total_rows, 
                    count({column_name}) as num_nonnulls_zeros, 
                    ({table_row_count} - count({column_name})) as non_populated_rows 
@@ -94,7 +96,8 @@ def create_hpo_completeness_query(table_columns):
         ) as x 
     """
     # queries = [query_with_concept_id.format(table_name=row['table_name'], column_name=row['column_name'],
-    #                         table_row_count=row['table_row_count']) if row['column_name'].endswith('concept_id') else query_with_concept_id.format(table_name=row['table_name'], column_name=row['column_name'],
+    #                         table_row_count=row['table_row_count']) if row['column_name'].endswith('concept_id')
+    #                    else query_with_concept_id.format(table_name=row['table_name'], column_name=row['column_name'],
     #                         table_row_count=row['table_row_count']) for i, row in table_columns.iteritems()]
     queries = []
     for i, row in table_columns.iterrows():
@@ -102,9 +105,17 @@ def create_hpo_completeness_query(table_columns):
             continue
 
         if row['column_name'].endswith('concept_id'):
-            x = query_with_concept_id.format(table_name=row['table_name'], column_name=row['column_name'], table_row_count=row['table_row_count'], dataset=dataset)
+            x = query_with_concept_id.format(table_name=row['table_name'],
+                                             column_name=row['column_name'],
+                                             hpo_id=hpo_id.lower(),
+                                             table_row_count=row['table_row_count'],
+                                             dataset=dataset)
         else:
-            x = query_without_concept_id.format(table_name=row['table_name'], column_name=row['column_name'], table_row_count=row['table_row_count'], dataset=dataset)
+            x = query_without_concept_id.format(table_name=row['table_name'],
+                                                column_name=row['column_name'],
+                                                hpo_id=hpo_id.lower(),
+                                                table_row_count=row['table_row_count'],
+                                                dataset=dataset)
         queries.append(x)
 
     return " union all ".join(queries)
@@ -116,7 +127,7 @@ hpo_ids = get_hpo_ids()
 for i, hpo_id in hpo_ids.iteritems():
     table_columns = get_hpo_table_columns(hpo_id)
 
-    query = create_hpo_completeness_query(table_columns)
+    query = create_hpo_completeness_query(table_columns, hpo_id)
     if query == "":
         continue
 #     print(query)
