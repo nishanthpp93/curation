@@ -12,11 +12,12 @@ import oauth2client
 
 # Project imports
 import bq_utils
-#import constants.bq_utils as bq_consts
+# import constants.bq_utils as bq_consts
 import constants.cleaners.combined as combined_consts
 import constants.cleaners.combined_deid as deid_consts
 
 LOGGER = logging.getLogger(__name__)
+
 
 def _add_console_logging(add_handler):
     # this config should be done in a separate module, but that can wait
@@ -27,15 +28,14 @@ def _add_console_logging(add_handler):
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
         LOGGER.addHandler(handler)
-    elif LOGGER.handlers == []:
+    elif not LOGGER.handlers:
         logging.basicConfig(filename='/tmp/cleaner.log')
 
 
 def _clean_dataset(project=None, dataset=None, statements=None):
     if project is None or project == '' or project.isspace():
-        project = app_identity.get_application_id()
         LOGGER.debug('Project name not provided.  Using default.')
-
+        project = app_identity.get_application_id()
 
     if statements is None:
         statements = []
@@ -47,20 +47,25 @@ def _clean_dataset(project=None, dataset=None, statements=None):
 
         try:
             results = bq_utils.query(full_query)
+            LOGGER.info("Executing query %s", full_query)
+
+            # wait for job to finish
+            query_job_id = results['jobReference']['jobId']
+            job_status = query_job_id['status']
+            error_result = job_status.get('errorResult')
+            if error_result is not None:
+                msg = 'Job {job_id} failed because: {error_result}'.format(job_id=query_job_id,
+                                                                           error_result=error_result)
+                raise bq_utils.InvalidOperationError(msg)
+            incomplete_jobs = bq_utils.wait_on_jobs([query_job_id])
+            if not incomplete_jobs:
+                failures += 1
+                raise bq_utils.BigQueryJobWaitError(incomplete_jobs)
         except (oauth2client.client.HttpAccessTokenRefreshError,
-            googleapiclient.errors.HttpError):
+                googleapiclient.errors.HttpError):
             LOGGER.exception("FAILED:  Clean rule not executed:\n%s", full_query)
             failures += 1
             continue
-
-        LOGGER.info("Executing query %s", full_query)
-
-        # wait for job to finish
-        query_job_id = results['jobReference']['jobId']
-        incomplete_jobs = bq_utils.wait_on_jobs([query_job_id])
-        if incomplete_jobs != []:
-            failures += 1
-            raise bq_utils.BigQueryJobWaitError(incomplete_jobs)
 
         successes += 1
 
@@ -85,6 +90,7 @@ def clean_ehr_dataset():
     # stub:  to be implemented as needed
     pass
 
+
 def clean_unioned_ehr_dataset():
     # stub:  to be implemented as needed
     pass
@@ -93,7 +99,7 @@ def clean_unioned_ehr_dataset():
 def clean_ehr_rdr_dataset(project=None, dataset=None):
     if dataset is None or dataset == '' or dataset.isspace():
         dataset = bq_utils.get_ehr_rdr_dataset_id()
-        LOGGER.info('Dataset is unspecified.  Using default value of:\t%s', dataset)
+        LOGGER.info('Dataset is unspecified. Using default value of:\t%s', dataset)
 
     LOGGER.info("Cleaning ehr_rdr_dataset")
     _clean_dataset(project, dataset, combined_consts.SQL_QUERIES)
@@ -102,7 +108,7 @@ def clean_ehr_rdr_dataset(project=None, dataset=None):
 def clean_ehr_rdr_unidentified_dataset(project=None, dataset=None):
     if dataset is None or dataset == '' or dataset.isspace():
         dataset = bq_utils.get_dataset_id()
-        LOGGER.info('Dataset is unspecified.  Using default value of:\t%s', dataset)
+        LOGGER.info('Dataset is unspecified. Using default value of:\t%s', dataset)
 
     LOGGER.info("Cleaning de-identified dataset")
     _clean_dataset(project, dataset, deid_consts.SQL_QUERIES)
@@ -112,7 +118,7 @@ def clean_all_cdr():
     clean_rdr_dataset()
     clean_ehr_dataset()
     clean_unioned_ehr_dataset()
-    clean_ehr_rdr_dataset()
+    clean_ehr_rdr_dataset(dataset='nishanth_ehr')
     clean_ehr_rdr_unidentified_dataset()
 
 
@@ -120,7 +126,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', action='store_true', help=('Send logs to console'))
+    parser.add_argument('-s', action='store_true', help='Send logs to console')
     args = parser.parse_args()
     _add_console_logging(args.s)
 
