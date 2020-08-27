@@ -61,7 +61,6 @@ from cdr_cleaner.cleaning_rules.rdr_observation_source_concept_id_suppression im
 from cdr_cleaner.cleaning_rules.truncate_rdr_using_date import TruncateRdrData
 from cdr_cleaner.cleaning_rules.unit_normalization import UnitNormalization
 from cdr_cleaner.cleaning_rules.create_person_ext_table import CreatePersonExtTable
-from cdr_cleaner.cleaning_rules.drop_zero_concept_ids import DropZeroConceptIDs
 from constants.cdr_cleaner import clean_cdr as cdr_consts
 from constants.cdr_cleaner.clean_cdr import DataStage
 
@@ -198,12 +197,18 @@ DATA_STAGE_RULES_MAPPING = {
     DataStage.FITBIT.value: FITBIT_CLEANING_CLASSES,
 }
 
-if __name__ == '__main__':
+
+def get_parser():
+    """
+    Create a parser which raises invalid enum errors
+
+    :return: parser
+    """
     import argparse
 
-    parser = argparse.ArgumentParser(
+    args_parser = argparse.ArgumentParser(
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument(
+    args_parser.add_argument(
         '-d',
         '--data_stage',
         required=True,
@@ -212,12 +217,14 @@ if __name__ == '__main__':
         type=DataStage,
         choices=list([s for s in DataStage if s is not DataStage.UNSPECIFIED]),
         help='Specify the dataset')
-    parser.add_argument('-s', action='store_true', help='Send logs to console')
+    args_parser.add_argument('-s',
+                             action='store_true',
+                             help='Send logs to console')
+    return args_parser
+
+
+if __name__ == '__main__':
+    parser = get_parser()
     args = parser.parse_args()
     clean_engine.add_console_logging(args.s)
-    if args.data_stage in DataStage.__members__.keys():
-        clean_engine.clean_dataset(
-            rules=DATA_STAGE_RULES_MAPPING[args.data_stage])
-    else:
-        raise OSError(
-            f'Dataset selection should be from {DataStage.__members__.items()}')
+    clean_engine.clean_dataset(rules=DATA_STAGE_RULES_MAPPING[args.data_stage])
