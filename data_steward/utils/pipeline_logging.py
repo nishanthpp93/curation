@@ -76,20 +76,22 @@ def create_logger(filename, console_logging=False):
     # formatters for both FileHandler and StreamHandler
     file_formatter = logging.Formatter(
         fmt='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
-        datefmt='%(asctime)s')
+        datefmt='%Y-%m-%d %H:%M:%S')
     stream_formatter = logging.Formatter(
         '%(levelname)s - %(name)s - %(message)s')
+
+    logging.basicConfig(level=logging.INFO, filemode='a')
 
     file_handler = logging.FileHandler(filename)
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(file_formatter)
-    logger.addHandler(file_handler)
+    logging.getLogger('').addHandler(file_handler)
 
     if console_logging is True:
         stream_handler = logging.StreamHandler()
         stream_handler.setLevel(logging.INFO)
         stream_handler.setFormatter(stream_formatter)
-        logger.addHandler(stream_handler)
+        logging.getLogger('').addHandler(stream_handler)
 
     return logging.getLogger(filename)
 
